@@ -8,3 +8,7 @@
 - Lab 6 - Email lab
 - Lab 7 - TLS
 - Lab 8 - Filesystems
+- Lab 9 - Containers
+- Lab 10 - DevOps
+- Lab 11 - Kubernetes
+- Lab 12 - Monitoring
