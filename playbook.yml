@@ -1,0 +1,45 @@
+---
+- hosts: vm
+  user: centos
+  become: yes
+  become_user: root
+  vars:
+    hostname: c28591zyx
+    domain_name: sysadexam.cs.ut.ee
+    ip_address: 172.17.91.0
+    zone_serial: 2022061505
+    reverse_ip: 91.17.172
+    scoring_server: 172.17.66.228
+    last_octet: 0
+    mysql_root_password: password
+    mail_user: mailuser
+    email_password: password
+    email_recipient: nagios@scoring.sysadexam.cs.ut.ee
+    samba_name: scoring
+    key_value_password: 2daysuperadmin
+#    Object Storage Console: https://scoring.sysadexam.cs.ut.ee:9000
+#    Object Storage API: https://scoring.sysadexam.cs.ut.ee:9001
+    scoring_site: https://scoring.sysadexam.cs.ut.ee:9001
+    ut_dns: 127.0.0.1
+
+    docker:
+      network:
+        subnet: "192.168.67.0/24"
+        iprange: "192.168.67.1/24"
+        gateway: "192.168.67.1"
+
+  roles:
+  - { role: 01-ports, tags: ports }
+  - { role: 03-etais, tags: etais }
+  - { role: 04-dns, tags: dns }
+  - { role: 05-apache, tags: apache }
+  - { role: 06-email, tags: email }
+  - { role: 07-tls, tags: tls }
+  - { role: 08-filesystems, tags: filesystems }
+  - { role: 09-containers, tags: containers }
+  - { role: 10-devops, tags: devops }
+  - { role: 11-kubernetes, tags: kubernetes }
+  - { role: 12-monitoring, tags: monitoring }
+#  - { role: tier1, tags: tier1 }
+#  - { role: tier2, tags: tier2 }
+#  - { role: tier3, tags: tier3 }
