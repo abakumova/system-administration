@@ -1,0 +1,14 @@
+- hosts: all
+  user: centos
+  become: yes
+  become_user: root
+
+  vars:
+    hostname: c28574
+    domain_name: sa.cs.ut.ee
+    reverse_ip: 90.17.172
+    last_octet: 2
+    ip: 172.17.90.102
+
+  roles:
+  - { role: 04-dns, tags: dns }

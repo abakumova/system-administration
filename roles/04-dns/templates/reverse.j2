@@ -1,0 +1,11 @@
+; BIND data file for reverse zone {{ reverse_ip }}.in-addr.arpa;
+$ORIGIN {{ reverse_ip }}.in-addr.arpa.
+$TTL       15M
+@          IN      SOA     ns1.{{ hostname }}.{{ domain_name }}. root.{{ hostname }}.{{ domain_name }}. (
+                           2023031302
+                           15M
+                           5M
+                           120M
+                           600)
+@          IN      NS      ns1.
+{{ last_octet }}         IN      PTR     ns1.{{ hostname }}.{{ domain_name }}.

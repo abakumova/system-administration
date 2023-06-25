@@ -1,0 +1,5 @@
+{{ ip }}
+{{ hostname }}
+{{ domain_name }}
+{{ last_octet }}
+{{ reverse_ip }}
