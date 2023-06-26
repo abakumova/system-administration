@@ -1,0 +1,265 @@
+- name: Install packages
+  dnf:
+    name: [ "httpd", "mod_ssl", "python3-pip", "php-mysqlnd", "php-fpm", "mariadb-server", "tar", "curl", "php-json", "mod_security", "netcat", "python3-mysqlclient" ]
+    state: present
+
+- name: Install the latest version of flask using PIP
+  pip:
+    name: flask
+
+- name: User add proxy
+  user:
+    name: proxy
+
+- name: Add http rule to firewalld
+  firewalld:
+    service: http
+    permanent: yes
+    state: enabled
+  notify: Restart firewalld
+
+- name: Open port 80/TCP for HTTP
+  firewalld:
+    port: 80/tcp
+    permanent: yes
+    state: enabled
+  notify:
+    - Reload firewalld service
+
+- name: Open port 80/UDP for HTTP
+  firewalld:
+    port: 80/udp
+    permanent: yes
+    state: enabled
+  notify:
+    - Reload firewalld service
+
+- name: Add CNAME record for www
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      www IN CNAME {{ hostname }}.{{ domain_name }}.
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for CNAME for www"
+  notify:
+    - Restart named
+    - Increment serial
+
+- name: Copy httpd.conf file
+  ansible.builtin.copy:
+    src: httpd.conf
+    dest: /etc/httpd/conf/httpd.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Add CNAME record for proxy
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      proxy IN CNAME {{ hostname }}.{{ domain_name }}.
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for CNAME for proxy"
+  notify:
+    - Restart named
+    - Increment serial
+
+- name: Create folder for apache
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: apache
+    group: apache
+    recurse: yes
+  with_items:
+    - /var/www
+    - /var/www/html/www.{{ hostname }}/public_html
+
+- name: Create a config for www virtual host
+  template:
+    src: vhost_www.j2
+    dest: /etc/httpd/conf.d/www.{{ hostname }}.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create an index.html file
+  copy:
+    dest: /var/www/html/www.{{ hostname }}/public_html/index.html
+    content: |
+      www.{{ hostname }}.{{ domain_name }}
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Copy website.py to /usr/local/lib/
+  ansible.builtin.copy:
+    src: website.py
+    dest: /usr/local/lib/website.py
+    owner: proxy
+    group: root
+    mode: '0644'
+
+- name: Create proxy service
+  copy:
+    src: proxy.service
+    dest: /etc/systemd/system/proxy.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create virtual host for proxy
+  template:
+    src: vhost_proxy.j2
+    dest: /etc/httpd/conf.d/proxy.{{ hostname }}.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Seboolean | this equates to 'setsebool -P httpd_can_network_connect=1'
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+
+- name: Reload systemctl service files systemctl daemon-reload
+  systemd:
+    daemon_reload: yes
+    name: proxy
+    state: started
+    enabled:
+    masked: no
+
+- name: Start and enable mariadb
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+
+#todo
+# TASK [05-apache : Change mysql root password] ***********************************************************************************************************************************************************************************************
+#fatal: [172.17.90.102]: FAILED! => {"changed": false, "msg": "unable to connect to database, check login_user and login_******** are correct or /root/.my.cnf has the credentials. Exception message: (1045, \"Access denied for user 'root'@'localhost' (using ********: NO)\")"}
+#...ignoring
+#- name: Change mysql root password
+#  mysql_user:
+#    name: root
+#    password: '{{ mysql_root_password }}'
+#    state: present
+#    host: 'localhost'
+#  ignore_errors: true
+
+#- name: Remove anonymous user account for localhost
+#  mysql_user:
+#    name: ''
+#    state: absent
+#    host: localhost
+#    login_password: '{{ mysql_root_password }}'
+#  no_log: true
+
+- name: Create a database wordpress
+  mysql_db:
+    name: wordpress
+    state: present
+    login_user: root
+    login_password: '{{ mysql_root_password }}'
+  ignore_errors: yes
+
+- name: Now we need to create a new user admin, with an insecure password pass
+  mysql_user:
+    name: admin
+    password: '{{ mysql_root_password }}'
+    login_password: '{{ mysql_root_password }}'
+    priv: '*.*:ALL'
+    host: localhost
+
+- name: Download wordpress
+  get_url:
+    url: "https://wordpress.org/latest.tar.gz"
+    dest: /tmp/wordpress.tar.gz
+    mode: 0644
+  ignore_errors: yes
+
+- name: Extract wordpress to /var/www/html
+  unarchive:
+    src: /tmp/wordpress.tar.gz
+    remote_src: yes
+    dest: /var/www/html
+    owner: apache
+    group: apache
+    creates: /var/www/html/wordpress
+
+- name: Sefcontext | this equates to 'chcon -t httpd_sys_rw_content_t /var/www/html/wordpress -R'
+  sefcontext:
+    target: '/var/www/html/wordpress'
+    setype: httpd_sys_rw_content_t
+    state: present
+
+- name: Create log files
+  file:
+    path: /var/log/httpd/{{ item }}
+    state: touch
+    owner: root
+    group: root
+    mode: 0755
+  with_items:
+    - php-errors.log
+    - www-php-errors.log
+    - www.{{ hostname }}-forensic.log
+
+- name: Change log files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  with_items:
+    - { src: "php-fpm.conf", dest: "/etc/php-fpm.conf" }
+    - { src: "www.conf", dest: "/etc/php-fpm.d/www.conf" }
+
+- name: Create virtual host for wordpress
+  template:
+    src: vhost_wordpress.j2
+    dest: /etc/httpd/conf.d/wordpress.{{ hostname }}.conf
+    owner: apache
+    group: apache
+    mode: '0644'
+  notify:
+    - Restart httpd service
+    - Restart php-fpm service
+
+- name: Add CNAME for wordpress
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      wordpress IN CNAME {{ hostname }}.{{ domain_name }}.
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for CNAME for wordpress"
+  notify:
+    - Increment serial
+    - Restart named
+
+- name: Add mod_security rules from modsecurity_localrules.conf
+  ansible.builtin.copy:
+    src: modsecurity_localrules.conf
+    dest: /etc/httpd/modsecurity.d/local_rules/modsecurity_localrules.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+
+#    - name: Add mode_security rules
+#      blockinfile:
+#        path: /etc/httpd/modsecurity.d/local_rules/modsecurity_localrules.conf
+#        block: |
+#          SecDefaultAction "phase:2,deny,log,status:406"
+#          SecRule REQUEST_URI "etc/passwd" "id:'500001'"
+#          SecRule REQUEST_URI "\.\./" "id:'500002'"
+#          SecRule ARGS "<[Ss][Cc][Rr][Ii][Pp][Tt]" "id:'500003'"
+#        marker:
+#          "# {mark} ANSIBLE MANAGED BLOCK for CNAME for modsecurity"
+#      notify: Restart httpd service
