@@ -1,0 +1,260 @@
+- name: Install packages
+  dnf:
+    name: [ "wget", "postfix", "alpine", "dovecot", "telnet", "epel-release", "dnf-plugins-core", "make", "ImageMagick", "ImageMagick-devel", "ImageMagick-perl", "pcre-devel", "zlib", "zlib-devel", "libzip", "libzip-devel", "libmcrypt-devel", "php", "php-fpm", "php-devel", "php-pear", "php-cli", "php-gd", "php-curl", "php-xml", "php-mysqlnd", "php-mbstring", "php-intl", "php-ldap", "mariadb", "mariadb-server" ]
+    state: present
+
+- name: Install the latest version of imagick
+  community.general.pear:
+    name: pecl/imagick
+    state: latest
+
+- name: Install the latest version of mcrypt
+  community.general.pear:
+    name: pecl/mcrypt
+    state: latest
+
+- name: Install the latest version of zip
+  community.general.pear:
+    name: pecl/zip
+    state: latest
+
+- name: Add MX record for @
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      @ IN MX 10 mail
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for MX for @"
+  notify:
+    - Increment serial
+    - Restart named
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- name: Add A record for mail
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      mail IN A {{ ip_address }}
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for A for mail"
+  notify:
+    - Increment serial
+    - Restart named
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- name: Edit /etc/postfix/main.cf and set inet_protocols to ipv4
+  template:
+    src: main_cf.j2
+    dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Add mailuser
+  user:
+    name: mailuser
+    state: present
+    password: "{{ email_password|password_hash('sha256') }}"
+
+- name: Send email to nagios
+  become: true
+  become_user: '{{ mail_user }}'
+  shell: 'echo -e "mailuser@{{ hostname }}.{{ domain_name }}" | sendmail {{ email_recipient }}'
+  #shell: 'echo -e "Subject: terminal email-01 \n\nHello! \nthis is a e-mail sent with ansible command from terminal\nby {{ mail_user }} from {{ hostname }}.{{ domain_name }}" | sendmail {{ email_recipient }}'
+
+- name: Change dovecot configs
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  with_items:
+    - src: 10-logging.conf
+      dest: /etc/dovecot/conf.d/10-logging.conf
+    - src: dovecot.conf
+      dest: /etc/dovecot/dovecot.conf
+    - src: 10-auth.conf
+      dest: /etc/dovecot/conf.d/10-auth.conf
+    - src: 10-mail.conf
+      dest: /etc/dovecot/conf.d/10-mail.conf
+    - src: 15-mailboxes.conf
+      dest: /etc/dovecot/conf.d/15-mailboxes.conf
+    - src: 10-ssl.conf
+      dest: /etc/dovecot/conf.d/10-ssl.conf
+  notify: Restart dovecot service
+
+- name: Add dovecot user to mail group
+  user:
+    name: "dovecot"
+    group: "mail"
+    append: yes
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- name: Copy postfix master.cf
+  copy:
+    src: master.cf
+    dest: /etc/postfix/master.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- name: dnf config-manager --set-enabled powertools
+  dnf:
+    enable_plugin: powertools
+
+- name: Setup package extensions
+  lineinfile:
+    dest: "/etc/php.d/20-{{ item }}.ini"
+    line: "extension={{ item }}.so"
+    state: present
+    create: yes
+  with_items:
+    - imagick
+    - mcrypt
+    - zip
+  notify:
+    - Restart mariadb service
+    - Restart httpd service
+    - Restart php-fpm service
+
+- name: Generate random password
+  shell: openssl rand -base64 16
+  register: random_password
+  changed_when: false
+
+- name: Create a new database with name 'roundcubemail'
+  community.mysql.mysql_db:
+    name: roundcubemail
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Create 'roundcube' user in MySQL
+  community.mysql.mysql_user:
+    name: roundcube
+    password: "{{ mysql_root_password }}"
+    priv: 'roundcubemail.*:ALL'
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Seed Roundcubemail database
+  mysql_db:
+    name: roundcubemail
+    state: import
+    login_password: "{{ mysql_root_password }}"
+    target: /var/www/html/roundcubemail/SQL/mysql.initial.sql
+  ignore_errors: true
+
+#To delete existent installation
+#- name: Remove Roundcube archive
+#  file:
+#    path: /tmp/roundcube.tar.gz
+#    state: absent
+#
+#- name: Remove Roundcube directory with version
+#  file:
+#    path: /var/www/html/roundcubemail-1.6.1
+#    state: absent
+#
+#- name: Remove Roundcube directory
+#  file:
+#    path: /var/www/html/roundcubemail
+#    state: absent
+
+- name: Download roundcube
+  get_url:
+    url: "https://github.com/roundcube/roundcubemail/releases/download/1.6.1/roundcubemail-1.6.1-complete.tar.gz"
+    dest: "/tmp/roundcube.tar.gz"
+    mode: '0440'
+
+- name: Unzip Roundcube archive
+  become: true
+  unarchive:
+    src: "/tmp/roundcube.tar.gz"
+    dest: "/var/www/html"
+    remote_src: true
+
+- name: Rename Roundcube directory
+  become: true
+  command: mv "/var/www/html/roundcubemail-1.6.1" "/var/www/html/roundcubemail"
+  args:
+    creates: /var/www/html/roundcubemail
+
+- name: Set owner, group, and permissions
+  file:
+    path: /var/www/html/roundcubemail
+    state: directory
+    owner: apache
+    group: apache
+    mode: "0755"
+    recurse: yes
+
+- name: Set SELinux permissions for Roundcube directory
+  become: true
+  command: chcon -t httpd_sys_rw_content_t /var/www/html/roundcubemail -R
+
+- name: Add virtual host for roundcube
+  template:
+    src: vhost_mail.j2
+    dest: /etc/httpd/conf.d/mail.{{ hostname }}.conf
+    owner: apache
+    group: apache
+    mode: '0644'
+  notify:
+    - Restart httpd service
+    - Restart php-fpm service
+
+- name: Create folder /var/log/roundcube
+  file:
+    path: /var/log/roundcube
+    state: directory
+    owner: apache
+    group: apache
+    mode: '0755'
+
+- name: Create Roundcube PHP config file
+  template:
+    src: config.inc.php.j2
+    dest: /var/www/html/roundcubemail/config/config.inc.php
+    owner: apache
+    group: apache
+    mode: '0644'
+  notify:
+    - Restart httpd service
+    - Restart php-fpm service
+
+- name: Enable and start Dovecot service
+  systemd:
+    name: dovecot
+    state: started
+    enabled: yes
+
+- name: Enable and start Postfix service
+  systemd:
+    name: postfix
+    state: started
+    enabled: yes
+
+- name: Enable and start Roundcube service (Apache)
+  systemd:
+    name: httpd
+    state: started
+    enabled: yes
+
+- name: Remove Roundcube installer directory
+  file:
+    path: /var/www/html/roundcubemail/installer
+    state: absent
