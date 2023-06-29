@@ -1,0 +1,13 @@
+<VirtualHost *:443>
+ ServerName  www.{{ hostname }}.{{ domain_name }}
+ DocumentRoot /var/www/html/www.{{ hostname }}/public_html
+ # Possible values include: debug, info, notice, warn, error, crit, alert, emerg.
+ LogLevel debug
+
+ ErrorLog /var/log/httpd/webmail-error.log
+ CustomLog /var/log/httpd//webmail-access.log combined
+ SSLEngine On
+ SSLCertificateFile /etc/pki/tls/certs/www_server.crt
+ SSLCertificateKeyFile /etc/pki/tls/private/www_server.key
+ SSLCACertificateFile /etc/pki/tls/certs/cacert.crt
+</VirtualHost>

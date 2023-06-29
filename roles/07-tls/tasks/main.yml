@@ -1,0 +1,122 @@
+#VAULT (pem, {{ hostname }}.{{ domain_name }})
+#Certificate: www_server.crt (CERTIFICATE)
+#Common name: {{ hostname }}.{{ domain_name }}
+#CA chain - cacert.crt (without comma)
+#Private key - www_server.key (RSA)
+
+- name: Install packages
+  dnf:
+    name: [ "mod_ssl", "cyrus-sasl-plain" ]
+    state: present
+  notify: Restart httpd service
+
+- name: Copy postfix master.cf
+  copy:
+    src: master.cf
+    dest: /etc/postfix/master.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Edit /etc/postfix/main.cf and set inet_protocols to ipv4
+  template:
+    src: main_cf.j2
+    dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Copy www_server.crt file
+  ansible.builtin.copy:
+    src: www_server.crt
+    dest: /etc/pki/tls/certs/www_server.crt
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy www_server.key file
+  ansible.builtin.copy:
+    src: www_server.key
+    dest: /etc/pki/tls/private/www_server.key
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy cacert.crt file
+  ansible.builtin.copy:
+    src: cacert.crt
+    dest: /etc/pki/tls/certs/cacert.crt
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Update 10-ssl.conf file
+  copy:
+    src: 10-ssl.conf
+    dest: /etc/dovecot/conf.d/10-ssl.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dovecot service
+
+- name: Update proxy.conf file
+  template:
+    src: proxy_virtual_host.j2
+    dest: /etc/httpd/conf.d/proxy.{{hostname}}.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dovecot service
+
+- name: Update a config for www virtual host
+  template:
+    src: vhost_www.j2
+    dest: /etc/httpd/conf.d/www.{{ hostname }}.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart httpd service
+
+- name: Create virtual host for wordpress
+  template:
+    src: vhost_wordpress.j2
+    dest: /etc/httpd/conf.d/wordpress.{{ hostname }}.conf
+    owner: apache
+    group: apache
+    mode: '0644'
+  notify:
+    - Restart httpd service
+    - Restart php-fpm service
+    - Restart named
+
+- name: Include https in firewalld service
+  firewalld:
+    service: https
+    permanent: yes
+    state: enabled
+  notify: Reload firewalld service
+
+- name: Copy www_server.crt to /etc/pki/dovecot/certs/dovecot.pem
+  copy:
+    src: /etc/pki/tls/certs/www_server.crt
+    dest: /etc/pki/dovecot/certs/dovecot.pem
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart dovecot service
+
+- name: Copy www_server.key to /etc/pki/dovecot/private/dovecot.pem
+  copy:
+    src: /etc/pki/tls/private/www_server.key
+    dest: /etc/pki/dovecot/private/dovecot.pem
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart dovecot service
+
+- name: Flush handlers
+  meta: flush_handlers
