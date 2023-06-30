@@ -1,0 +1,163 @@
+- name: Create /etc/docker directory
+  file:
+    path: /etc/docker
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Move daemon.json to /etc/docker
+  copy:
+    src: daemon.json
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install packages
+  dnf:
+    name: [ "yum-utils" ]
+    state: present
+
+- name: Add Docker repository
+  ansible.builtin.command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+- name: Install Docker
+  yum:
+    name: [ 'docker-ce', 'docker-ce-cli', 'containerd.io', 'docker-compose-plugin', 'python3-docker' ]
+    state: present
+
+- name: Start and enable Docker service
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create destination directory
+  ansible.builtin.file:
+    path: "/etc/httpd/conf.d"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /docker_lab directory
+  file:
+    path: ~/docker_lab
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy server.py to the docker_lab directory
+  copy:
+    src: server.py
+    dest: ~/docker_lab/server.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy Dockerfile to the docker_lab directory
+  copy:
+    src: Dockerfile
+    dest: ~/docker_lab/Dockerfile
+    owner: root
+    group: root
+    mode: '0755'
+
+#- name: Create Docker network
+#  docker_network:
+#    name: docker_lab
+#    ipam_config:
+#      - subnet: "{{ docker.network.subnet }}"
+#        iprange: "{{ docker.network.iprange }}"
+#        gateway: "{{ docker.network.gateway }}"
+#    driver: bridge
+#  ignore_errors: yes
+
+- name: Create whoami container
+  docker_container:
+    name: whoami
+    image: registry.hpc.ut.ee/mirror/containous/whoami
+    pull: yes
+    restart_policy: always
+
+#- name: Inspect Docker container
+#  command: docker inspect whoami
+#  register: inspect_result
+#
+#- name: Extract container IP address
+#  set_fact:
+#    container_ip: "{{ inspect_result.stdout | from_json | json_query('[].NetworkSettings.IPAddress') | first }}"
+
+#- name: Run docker run command
+#  docker_container:
+#    name: docker_lab
+#    image: docker_lab
+#    hostname: docker-lab
+#    pull: no
+#    networks_cli_compatible: yes
+#    restart_policy: always
+#    networks:
+#      - name: docker_lab
+#        ipv4_address: "{{ container_ip }}"
+#    exposed_ports:
+#      - '5000'
+#    ports:
+#      - '5005:5000'
+
+- name: Build the Docker image
+  docker_image:
+    name: docker_lab
+    build:
+      path: ~/docker_lab
+      pull: no
+    source: build
+
+#- name: Run Docker container
+#  command:
+#    cmd: docker run -d --name docker_lab docker_lab
+#    chdir: ~/docker_lab
+
+- name: Run Docker container
+  become: true
+  docker_container:
+    name: docker_lab
+    image: docker_lab
+    detach: yes
+    ports:
+      - "5005:5000"
+    exposed_ports:
+      - "5000"
+
+- name: Inspect Docker container
+  command: docker inspect docker_lab
+  register: inspect_result
+
+- name: Extract container IP address
+  set_fact:
+    container_ip: "{{ inspect_result.stdout | from_json | json_query('[].NetworkSettings.IPAddress') | first }}"
+
+- name: Copy vhost_proxy_container.j2 template to destination
+  template:
+    src: vhost_proxy_container.j2
+    dest: /etc/httpd/conf.d/container-proxy.{{hostname}}.{{domain_name}}.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Add CNAME for container-proxy
+  blockinfile:
+    path: /etc/named/{{ hostname }}.{{ domain_name }}
+    block: |
+      container-proxy IN CNAME {{ hostname }}.{{ domain_name }}.
+    marker:
+      "; {mark} ANSIBLE MANAGED BLOCK for CNAME for container-proxy"
+  notify:
+    - Increment serial
+    - Restart named
+    - Restart php-fpm service
+
+- name: Flush handlers
+  meta: flush_handlers
