@@ -1,0 +1,103 @@
+- name: Services
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  with_items:
+    - docker
+    - mariadb
+    - named
+
+- name: SSH
+  file:
+    name: /home/scoring/.ssh/authorized_keys
+    mode: 0000 #permissions need to be updated - scoring can't reach the system
+
+- name: K8S
+  shell: kubectl delete ns/lab11
+  failed_when: false
+
+- name: K8s
+  shell: |
+    /usr/local/bin/kubectl patch service prometheus -n prometheus --type='json' -p='[{"op": "replace", "path": "/metadata/labels/app", "value": "loki"}]'
+  failed_when: false
+
+- name: Named
+  lineinfile:
+    dest: /etc/named.conf
+    regex: "^ *listen-on port 53"
+    line: "        listen-on port 53 { any; }"
+    state: present
+
+- name: Postfix
+  lineinfile:
+    dest: /etc/postfix/main.cf
+    regex: "^inet_interfaces"
+    line: "inet_interfaces = localhost"
+    state: present
+
+- name: Postfix
+  lineinfile:
+    dest: /etc/postfix/main.cf
+    regex: "^myhostname"
+    line: "myhostname = localhost"
+    state: present
+
+- name: Postfix
+  lineinfile:
+    dest: /etc/postfix/main.cf
+    regex: "^myorigin"
+    line: "myorigin = localhost"
+    state: present
+
+- name: Filesystems
+  ansible.posix.mount:
+    path: /mnt/nfs
+    state: unmounted
+
+- name: Traefik
+  lineinfile:
+    dest: /etc/traefik/traefik.toml
+    regex: "^ *dashboard = "
+    line: "  dashboard = false"
+    state: present
+
+- name: HTTPD
+  file:
+    dest: /var/www/html
+    mode: 0000 #permissions need to be updated
+
+- name: HTTPD
+  package:
+    name: mod_ssl
+    state: absent
+
+- name: Certificates
+  file:
+    dest: /etc/pki/tls/certs
+    mode: 0700
+
+- name: HTTPD
+  service:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - httpd
+    - postfix
+  ignore_errors: true
+
+- name: Exports
+  file:
+    path: '/etc/exports'
+    state: absent
+
+- name: Exports
+  file:
+    path: '/etc/exports'
+    state: touch
+
+- name: Exports
+  shell: exportfs -a
+
+- name: Unconditionally reboot the machine with all defaults
+  ansible.builtin.reboot:

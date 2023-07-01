@@ -1,0 +1,43 @@
+- name: SSH
+  file:
+    name: /home/scoring/.ssh/authorized_keys
+    state: absent
+
+- name: k3s
+  file:
+    name: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    state: absent
+
+- name: httpd
+  shell: "sed -i 's|:443|:444|g' /etc/httpd/conf.d/*.conf"
+
+- name: httpd
+  shell: "sed -i 's|:80|:81|g' /etc/httpd/conf.d/*.conf"
+
+- name: named
+  shell: "sed -i 's|0|o|g' /etc/named/*"
+
+- name: named
+  shell: "chattr +i /etc/named/*"
+
+- name: httpd
+  shell: |
+    find /var/www/ -type d -exec chmod 000 {} \;
+
+- name: Services
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  with_items:
+    - docker
+    - mariadb
+    - named
+    - k3s
+    - httpd
+
+- name: httpd
+  shell: systemctl mask httpd
+
+- name: finalize
+  community.general.shutdown:

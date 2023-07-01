@@ -1,0 +1,76 @@
+- name: Services
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  with_items:
+    - docker
+    - mariadb
+    - named
+
+- name: Timezone
+  community.general.timezone:
+    name: Asia/Tokyo
+
+- name: Filesystems
+  ansible.posix.mount:
+    path: /mnt/nfs
+    state: unmounted
+
+- name: Firewalld
+  file:
+    path: /etc/firewalld/zones
+    state: absent
+
+- name: Firewalld
+  file:
+    path: /etc/firewalld/zones
+    state: directory
+    owner: root
+    group: root
+    mode: 0750
+
+- name: Hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "172.17.66.134 scoring.sa.cs.ut.ee"
+    regexp: "^172.17.66.134 scoring.sa.cs.ut.ee"
+
+- name: Firewalld restart
+  service:
+    name: firewalld
+    state: restarted
+
+- name: HTTPD
+  shell: sed -i 's|SSLEngine on|SSLEngine off|g' /etc/httpd/conf.d/*
+
+- name: HTTPD
+  service:
+    name: httpd
+    state: restarted
+
+- name: Certificates
+  shell: doveconf -aP | grep -E "^ssl_cert =" | awk -F "<" '{print $2}'
+  register: ssl_cert
+
+- name: Certificates
+  shell: doveconf -aP | grep -E "^ssl_key =" | awk -F "<" '{print $2}'
+  register: ssl_key
+
+- name: Certificates
+  get_url:
+    url: http://scoring.sa.cs.ut.ee/files/exam_preparation/tier1/certificate.pem
+    dest: "{{ ssl_cert.stdout }}"
+    force: yes
+
+- name: Certificates
+  get_url:
+    url: http://scoring.sa.cs.ut.ee/files/exam_preparation/tier1/certificate.key
+    dest: "{{ ssl_key.stdout }}"
+    force: yes
+
+- name: Exports
+  shell: exportfs -a
+
+- name: Unconditionally reboot the machine with all defaults
+  ansible.builtin.reboot:
