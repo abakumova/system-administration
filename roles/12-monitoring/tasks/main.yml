@@ -1,0 +1,338 @@
+- name: Create /lab12 directory
+  file:
+    path: /lab12
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /etc/prometheus directory
+  file:
+    path: /etc/prometheus
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /etc/loki directory
+  file:
+    path: /etc/loki
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /etc/promtail directory
+  file:
+    path: /etc/promtail
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Update configuration file /etc/rsyslog.conf
+  copy:
+    src: rsyslog.conf
+    dest: /etc/rsyslog.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create configuration file /etc/rsyslog.d/01-receiving.conf
+  copy:
+    src: 01-receiving.conf
+    dest: /etc/rsyslog.d/01-receiving.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart rsyslog
+
+# Node Exporter
+- name: Create node_exporter.yaml
+  copy:
+    src: node-exporter.yaml
+    dest: /lab12/node-exporter.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create node_exporter_service.yaml
+  copy:
+    src: node-exporter-service.yaml
+    dest: /lab12/node-exporter-service.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run kubectl apply for node_exporter.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab12/node-exporter.yaml
+    executable: /usr/local/bin/kubectl
+
+- name: Run kubectl apply for node_exporter_service.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab12/node-exporter-service.yaml
+    executable: /usr/local/bin/kubectl
+
+# Prometheus
+- name: Create prometheus.yaml
+  copy:
+    src: prometheus.yaml
+    dest: /etc/prometheus/prometheus.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create prometheus_service.yaml
+  copy:
+    src: prometheus-service.yaml
+    dest: /etc/prometheus/prometheus-service.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run kubectl apply for prometheus.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /etc/prometheus/prometheus.yaml
+    executable: /usr/local/bin/kubectl
+
+- name: Run kubectl apply for prometheus_service.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /etc/prometheus/prometheus-service.yaml
+    executable: /usr/local/bin/kubectl
+
+# Grafana
+- name: Create grafana.yaml
+  copy:
+    src: grafana.yaml
+    dest: /lab12/grafana.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create grafana_service.yaml
+  copy:
+    src: grafana-service.yaml
+    dest: /lab12/grafana-service.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run kubectl apply for grafana.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab12/grafana.yaml
+    executable: /usr/local/bin/kubectl
+
+- name: Run kubectl apply for grafana_service.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab12/grafana-service.yaml
+    executable: /usr/local/bin/kubectl
+
+# Loki
+- name: Create loki.yaml
+  copy:
+    src: loki.yaml
+    dest: /etc/loki/loki.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create loki_service.yaml
+  copy:
+    src: loki-service.yaml
+    dest: /etc/loki/loki-service.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run kubectl apply for loki.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /etc/loki/loki.yaml
+    executable: /usr/local/bin/kubectl
+
+- name: Run kubectl apply for loki_service.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /etc/loki/loki-service.yaml
+    executable: /usr/local/bin/kubectl
+
+# Promtail
+- name: Create promtail.yaml
+  copy:
+    src: promtail.yaml
+    dest: /etc/promtail/promtail.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run kubectl apply for promtail.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /etc/promtail/promtail.yaml
+    executable: /usr/local/bin/kubectl
+
+
+#- name: Monitoring Lab 12
+#  hosts: all
+#  become: true
+#  tasks:
+#    - name: Update configuration file /etc/rsyslog.conf
+#      copy:
+#        src: rsyslog.conf
+#        dest: /etc/rsyslog.conf
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Create configuration file /etc/rsyslog.d/01-receiving.conf
+#      copy:
+#        src: 01-receiving.conf
+#        dest: /etc/rsyslog.d/01-receiving.conf
+#        owner: root
+#        group: root
+#        mode: '0644'
+#      notify: Restart rsyslog
+#
+#    #Node Exporter
+#    - name: Create node_exporter.yaml
+#      copy:
+#        src: node-exporter.yaml
+#        dest: /lab12/node-exporter.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Create node_exporter_service.yaml
+#      copy:
+#        src: node-exporter-service.yaml
+#        dest: /lab12/node-exporter-service.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Run kubectl apply node_exporter.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f node-exporter.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /lab12/node-exporter.yaml
+#
+#    - name: Run kubectl apply node_exporter_service.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f node_exporter_service.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /lab12/node_exporter_service.yaml
+#
+#    #Prometheus
+#    - name: Create prometheus.yaml
+#      copy:
+#        src: prometheus.yaml
+#        dest: /etc/prometheus/prometheus.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Create prometheus_service.yaml
+#      copy:
+#        src: node-exporter-service.yaml
+#        dest: /etc/prometheus/prometheus-service.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Run kubectl apply prometheus.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f prometheus.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /etc/prometheus/prometheus.yaml
+#
+#    - name: Run kubectl apply prometheus_service.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f prometheus_service.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /etc/prometheus/prometheus-service.yaml
+#
+#    # GRAFANA
+#    - name: Create grafana.yaml
+#      copy:
+#        src: grafana.yaml
+#        dest: /lab12/grafana.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Create grafana-service.yaml
+#      copy:
+#        src: grafana-service.yaml
+#        dest: /lab12/grafana-service.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Run kubectl apply grafana.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f grafana.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /lab12/grafana.yaml
+#
+#    - name: Run kubectl apply grafana-service.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f grafana-service.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /lab12/grafana-service.yaml
+#
+#    #LOKI
+#    - name: Create loki.yaml
+#      copy:
+#        src: loki.yaml
+#        dest: /etc/loki/loki.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Create loki-service.yaml
+#      copy:
+#        src: loki-service.yaml
+#        dest: /etc/loki/loki-service.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Run kubectl apply loki.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f loki.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /etc/loki/loki.yaml
+#
+#    - name: Run kubectl apply loki-service.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f loki-service.yaml
+#        executable: /usr/local/bin
+#      args:
+#        chdir: /etc/loki/loki-service.yaml
+#
+#    #Promtail
+#    - name: Create promtail.yaml
+#      copy:
+#        src: promtail.yaml
+#        dest: /etc/promtail/promtail.yaml
+#        owner: root
+#        group: root
+#        mode: '0644'
+#
+#    - name: Run kubectl apply promtail.yaml
+#      ansible.builtin.shell:
+#        cmd: kubectl apply -f promtail.yaml
+#        executable: /usr/promtail/bin
+#      args:
+#        chdir: /etc/promtail/promtail.yaml
+#
+#  handlers:
+#    - name: Restart rsyslog
+#      service:
+#        name: rsyslog
+#        state: restarted

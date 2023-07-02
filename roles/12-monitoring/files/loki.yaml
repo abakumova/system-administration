@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: loki
+data:
+  loki.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+
+    ingester:
+      lifecycler:
+        address: 127.0.0.1
+        ring:
+          kvstore:
+            store: inmemory
+          replication_factor: 1
+      chunk_idle_period: 15m
+      chunk_retain_period: 5m
+      max_transfer_retries: 0
+      wal:
+        dir: /data/loki/wal
+
+    schema_config:
+      configs:
+        - from: 2023-01-01
+          schema: v11
+          store: boltdb
+          object_store: filesystem
+          index:
+            period: 24h
+            prefix: sysadmin_
+
+
+    storage_config:
+      boltdb:
+        directory: /data/loki/index
+      filesystem:
+        directory: /data/loki/chunks
+
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    chunk_store_config:
+      max_look_back_period: 0
+
+    table_manager:
+      retention_deletes_enabled: false
+      retention_period: 0
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki
+  namespace: loki
+spec:
+  serviceName: loki
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      initContainers:
+      - name: init-chown-data
+        image: busybox:1.33.1
+        command: ["sh", "-c", "chown -R 10001:10001 /data/loki"]
+        volumeMounts:
+        - name: data
+          mountPath: /data/loki
+      containers:
+      - name: loki
+        image: grafana/loki:latest
+        args:
+        - "-config.file=/etc/loki/loki.yaml"
+        ports:
+        - containerPort: 3100
+          name: http-metrics
+        volumeMounts:
+        - name: config
+          mountPath: /etc/loki
+        - name: data
+          mountPath: /data/loki
+      volumes:
+      - name: config
+        configMap:
+          name: loki-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
