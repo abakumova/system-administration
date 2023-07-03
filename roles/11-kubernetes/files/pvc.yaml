@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-lab11
+  namespace: vols
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeName: pvol-lab11
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 200Mi

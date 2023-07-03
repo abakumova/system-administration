@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"glutton","namespace":"resource-mgt"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"glutton"}},"template":{"metadata":{"labels":{"app":"glutton"}},"spec":{"containers":[{"args":["-cpus","2","-mem-total","70Mi","-mem-alloc-size","60Mi","-mem-alloc-sleep","1s"],"image":"nginx","name":"nginx","ports":[{"containerPort":80}],"resources":{"limits":{"cpu":"20m","memory":"50Mi"},"requests":{"cpu":"10m","memory":"20Mi"}}}]}}}}
+  creationTimestamp: "2023-04-30T12:48:07Z"
+  generation: 1
+  name: glutton
+  namespace: resource-mgt
+  resourceVersion: "1617"
+  uid: c7c84a72-363e-48a4-adcd-2202719e5e89
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: glutton
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: glutton
+    spec:
+      containers:
+      - args:
+        - -cpus
+        - "2"
+        - -mem-total
+        - 70Mi
+        - -mem-alloc-size
+        - 60Mi
+        - -mem-alloc-sleep
+        - 1s
+        image: nginx
+        imagePullPolicy: Always
+        name: nginx
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 20m
+            memory: 50Mi
+          requests:
+            cpu: 10m
+            memory: 20Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  conditions:
+  - lastTransitionTime: "2023-04-30T12:48:07Z"
+    lastUpdateTime: "2023-04-30T12:48:15Z"
+    message: ReplicaSet "glutton-59dc59fbbd" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  - lastTransitionTime: "2023-04-30T12:48:16Z"
+    lastUpdateTime: "2023-04-30T12:48:16Z"
+    message: Deployment does not have minimum availability.
+    reason: MinimumReplicasUnavailable
+    status: "False"
+    type: Available
+  observedGeneration: 1
+  replicas: 1
+  unavailableReplicas: 1
+  updatedReplicas: 1

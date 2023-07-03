@@ -1,0 +1,156 @@
+- name: Create parent directories
+  file:
+    path: /var/lib/rancher/k3s/server/manifests
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create traefik-config
+  copy:
+    src: traefik-config.yaml
+    dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create lab11 directory
+  file:
+    path: /lab11
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /shares/k8s directory
+  file:
+    path: /shares/k8s
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create /mnt/k8s directory
+  file:
+    path: /mnt/k8s
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Install kubernetes
+  command: curl -sfL https://get.k3s.io | sh -
+  register: k3s_install
+  changed_when: "'[INFO]  systemd: Starting k3s' in k3s_install.stdout"
+  ignore_errors: yes
+
+- name: Install required packages
+  pip:
+    name: [ 'openshift', 'pyyaml', 'kubernetes' ]
+    state: present
+
+- name: Start k3s service
+  ansible.builtin.service:
+    name: k3s
+    state: started
+
+- name: Enable k3s service
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: yes
+    state: started
+
+- name: Create namespace lab11
+  ansible.builtin.shell:
+    cmd: kubectl create ns lab11
+    executable: /usr/local/bin/kubectl
+
+- name: copying file with playbook
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - { src: "deployment.yml", dest: "/lab11/deployment.yml" }
+    - { src: "service.yml", dest: "/lab11/service.yml" }
+    - { src: "ingress.yml", dest: "/lab11/ingress.yml" }
+
+- name: Create a deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /lab11/deployment.yml
+
+- name: Create a service
+  kubernetes.core.k8s:
+    state: present
+    src: /lab11/service.yml
+
+- name: Create an ingress
+  kubernetes.core.k8s:
+    state: present
+    src: /lab11/ingress.yml
+
+- name: Update /etc/exports
+  blockinfile:
+    path: /etc/exports
+    block: |
+          /shares/k8s 127.0.0.1(rw,no_root_squash)
+          /shares/nfs 127.0.0.1(rw,no_root_squash)
+    marker: ""
+
+- name: Copy pvc.yaml to root
+  copy:
+    src: pvc.yaml
+    dest: /lab11/pvc.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy pvol.j2 to destination
+  template:
+    src: pvol.j2
+    dest: /lab11/pvol.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Render pvol.yaml from template
+  copy:
+    src: /lab11/pvol.yaml
+    dest: /lab11/pvol.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy reg-lab11.yaml to root
+  copy:
+    src: reg-lab11.yaml
+    dest: /lab11/reg-lab11.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable nfs-server
+  ansible.builtin.command: systemctl enable nfs-server
+
+- name: Start nsf-service
+  ansible.builtin.service:
+    name: nsf-service
+    state: started
+
+- name: Apply pvol.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab11/pvol.yaml
+    executable: /usr/local/bin
+
+- name: Apply pvc.yaml
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab11/pvc.yaml
+    executable: /usr/local/bin
+
+- name: Apply reg-lab11.yaml in vols namespace
+  ansible.builtin.shell:
+    cmd: kubectl apply -f /lab11/reg-lab11.yaml -n vols
+    executable: /usr/local/bin

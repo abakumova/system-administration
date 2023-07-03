@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-that-writes
+  namespace: vols
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: pod-that-writes
+  template:
+    metadata:
+      labels: 
+        app: pod-that-writes
+    spec:
+      containers:
+      - image: registry.hpc.ut.ee/sysadmincourse-dev/container_that_writes:1.0
+        name: pod-that-writes
+        volumeMounts:
+        - name: nfs-vol
+          mountPath: /opt/k8s
+      volumes:
+      - name: nfs-vol
+        persistentVolumeClaim:
+          claimName: pvc-lab11

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laptop
+  namespace: vols
+data:
+  laptop.brand: HP
+  laptop.model: '840'
+  laptop.gen: G8

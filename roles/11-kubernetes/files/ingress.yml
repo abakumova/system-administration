@@ -1,0 +1,13 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  namespace: lab11
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  defaultBackend:
+    service:
+      name: my-service
+      port:
+        number: 80

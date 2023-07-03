@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+    name: hw1
+    namespace: lab11
+spec:
+    containers:
+    - image: registry.hpc.ut.ee/sysadmincourse-dev/hello-world:1.0
+      name: hw1
+      ports:
+      - containerPort: 5000

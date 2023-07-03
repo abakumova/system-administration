@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvol-lab11
+spec:
+  capacity:
+    storage: 200Mi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: /shares/k8s
+    server: {{ hostname }}.{{ domain_name }}
+    readOnly: false
