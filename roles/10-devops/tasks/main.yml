@@ -1,0 +1,45 @@
+- name: Create /etc/traefik directory
+  file:
+    path: /etc/traefik
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create traefik.toml
+  copy:
+    src: traefik.toml
+    dest: /etc/traefik/traefik.toml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create traefik container
+  docker_container:
+    name: traefik
+    image: traefik:v2.1.8
+    ports:
+      - "50080:80"
+      - "58080:8080"
+    mounts:
+      - source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        type: bind
+        read_only: yes
+      - source: /etc/traefik/traefik.toml
+        target: /traefik.toml
+        type: bind
+        read_only: yes
+    restart_policy: always
+    pull: yes
+
+- name: Create whoami-traefik container
+  docker_container:
+    name: whoami-traefik
+    image: registry.hpc.ut.ee/mirror/containous/whoami
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.router.rule: 'Host(`{{ hostname }}.{{ domain_name }}`)'
+      traefik.http.routers.router.entrypoints: web
+    restart_policy: always
+    pull: yes
