@@ -1,0 +1,80 @@
+- name: Reload firewalld service
+  service:
+    name: firewalld
+    state: reloaded
+
+- name: Restart named
+  service:
+    name: named
+    state: restarted
+    enabled: yes
+
+- name: Restart firewalld
+  service:
+    name: firewalld
+    state: restarted
+    enabled: yes
+
+- name: Restart httpd service
+  service:
+    name: httpd
+    state: restarted
+    enabled: yes
+
+- name: Restart proxy service
+  service:
+    name: proxy
+    state: restarted
+    enabled: yes
+
+- name: Restart mariadb service
+  service:
+    name: mariadb
+    state: restarted
+    enabled: yes
+
+- name: Restart php-fpm service
+  service:
+    name: php-fpm
+    state: restarted
+    enabled: yes
+
+- name: Restart postfix service
+  service:
+    name: postfix
+    state: restarted
+    enabled: yes
+
+- name: Restart dovecot service
+  service:
+    name: dovecot
+    state: restarted
+    enabled: yes
+
+- name: Restart httpd service
+  ansible.builtin.service:
+    name: httpd
+    state: restarted
+
+- name: Increment serial
+  shell: awk -i inplace '{ if ( $0 ~ /Serial/ ) $1=$1+1; print}' /etc/named/{{ hostname }}.{{ domain_name }}
+
+- name: run exportfs -a
+  command: exportfs -a
+
+- name: Restart SMB service
+  service:
+    name: smb
+    state: restarted
+    enabled: yes
+    masked: no
+
+- name: Restart rsyslog
+  service:
+    name: rsyslog
+    state: restarted
+
+- name: Restart NFS
+  service:
+    name: nfs-server
+    state: restarted
