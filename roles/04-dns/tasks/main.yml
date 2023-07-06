@@ -141,5 +141,39 @@
     mode: '0644'
   notify: Restart named
 
+#  Fix permissions
+- name: Change ownership of /etc/named.conf
+  file:
+    path: /etc/named.conf
+    owner: named
+    group: named
+    mode: '0640'
+
+- name: Change ownership of /var/named/
+  file:
+    path: /var/named/
+    owner: named
+    group: named
+    recurse: yes
+
+- name: Change ownership of /var/log/named/
+  file:
+    path: /var/log/named/
+    owner: named
+    group: named
+    recurse: yes
+
+- name: Change permissions of /var/named/
+  file:
+    path: /var/named/
+    mode: '0750'
+    recurse: yes
+
+- name: Change permissions of /var/log/named/
+  file:
+    path: /var/log/named/
+    mode: '0750'
+    recurse: yes
+
 - name: Flush handlers
   meta: flush_handlers
